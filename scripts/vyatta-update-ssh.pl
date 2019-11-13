@@ -33,9 +33,10 @@ my $vars = {
     ClientAliveInterval => 0,
 };
 
-my $keygen      = 1;
-my $update      = 0;
-my $update_file = '/etc/ssh/sshd_config';
+my $keygen       = 1;
+my $update       = 0;
+my $update_file  = '/etc/ssh/sshd_config';
+my $priv_sep_dir = '/run/sshd';
 
 sub setup_options {
     my ( $opts, $config, $cli_path ) = @_;
@@ -236,6 +237,8 @@ if ( !defined($cli_path) ) {
     $cli_path = $cli_path . " ";
 }
 
+mkdir $priv_sep_dir unless -d $priv_sep_dir;
+
 setup_ports( $vars, $config, $cli_path );
 setup_listen_addrs( $vars, $config, $cli_path );
 setup_options( $vars, $config, $cli_path );
@@ -266,7 +269,6 @@ Protocol 2
 HostKey /etc/ssh/ssh_host_rsa_key
 HostKey /etc/ssh/ssh_host_dsa_key
 HostKey /etc/ssh/ssh_host_ecdsa_key
-UsePrivilegeSeparation yes
 SyslogFacility AUTH
 LogLevel INFO
 LoginGraceTime [% LoginGraceTime %]
