@@ -1,0 +1,63 @@
+#!/bin/bash
+
+# There are two locations to enable basic ssh service
+# set service ssh
+# set routing routing-instance blue service ssh
+#
+# When setting 'set service ssh' we enable ssh on the default vrf.
+
+PRIV_SEP_DIR="/run/sshd"
+
+for option in "$@"; do
+    case $option in
+        --routing-instance=*)
+            VRFName="${option#*=}"
+            shift
+            ;;
+        --action=*)
+            action="${option#*=}"
+            shift
+            ;;
+        *)
+            echo "ssh: unknown option"
+            ;;
+    esac
+done
+
+: ${VRFName:="default"}
+
+case $action in
+    delete)
+        if [[ "$VRFName" != "default" ]]; then
+            systemctl stop sshd@${VRFName}.service
+            rm -f /run/ssh/vrf/$VRFName/sshd_config &> /dev/null
+        else
+            systemctl stop ssh &> /dev/null
+            # stop sshd from automatically running at the next reboot
+            touch /etc/ssh/sshd_not_to_be_run
+        fi
+    ;;
+
+    update)
+        # priv separation dir
+        # assumes that the current effective UID == 0
+        if [ ! -d "$PRIV_SEP_DIR" ]; then
+            mkdir -p "$PRIV_SEP_DIR" -m 0755 || exit 1
+        fi
+
+        if [[ $VRFName != "default" ]]; then
+            mkdir -p /run/ssh/vrf/$VRFName
+            vyatta-update-ssh.pl --cli-path="routing routing-instance $VRFName " \
+                --update=/run/ssh/vrf/$VRFName/sshd_config
+
+            echo "SSHD_CONF_FILE=-f /run/ssh/vrf/$VRFName/sshd_config" > /run/ssh/vrf/$VRFName/${VRFName}.env
+            echo "VRFName=$VRFName" >> /run/ssh/vrf/$VRFName/${VRFName}.env
+            systemctl reload-or-restart sshd@${VRFName}.service
+        else
+            vyatta-update-ssh.pl --update=/etc/ssh/sshd_config
+            # sshd can run, as update also removed /etc/ssh/sshd_not_to_be_run
+            systemctl reload-or-restart ssh
+        fi
+
+    ;;
+esac

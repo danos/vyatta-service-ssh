@@ -1,0 +1,247 @@
+#! /usr/bin/perl
+# Wrapper around the base Linux ssh command to provide
+#  nicer API (ie no flag arguments)
+#
+# **** License ****
+# Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+# Copyright (c) 2016-2017, Brocade Communications Systems, Inc.
+# All Rights Reserved.
+#
+# SPDX-License-Identifier: GPL-2.0-only
+# **** End License ****
+#
+# Syntax
+#   ssh HOST
+#           [ routing-instance ]
+#           [ port ]
+#           [ user ]
+
+use strict;
+use warnings;
+use Net::IP;
+use NetAddr::IP;
+use File::Copy;
+use Data::Validate::IP qw(is_linklocal_ipv6);
+use Vyatta::Interface;
+use feature ":5.10";
+use Switch;
+use lib "/opt/vyatta/share/perl5/";
+
+use constant {
+    NONE => 0,
+    V4   => 1,
+    V6   => 2,
+    V4V6 => 3
+};
+
+# Get source interface for SSH
+sub get_src_ifname {
+    my $search_str = "BindInterface";
+    my $value      = undef;
+
+    open( my $fh, "<", "/etc/ssh/vyatta_ssh_config" ) || return undef;
+    while (<$fh>) {
+        if (/^\s*$search_str\s*(\S*)/) {
+            $value = $1;
+        }
+    }
+    close($fh);
+
+    return $value;
+}
+
+# Get source addresses for SSH
+sub get_src_addrs {
+    my ( $ifname, @vrf_args ) = @_;
+    my ( $ipaddr, $ip6addr ) = ( undef, undef );
+    my @cmd = ( qw(ip addr show scope global dev), $ifname );
+
+    open my $ipcmd, '-|'
+      or exec @vrf_args, @cmd
+      or die "ip addr command failed: $!";
+    if ( ( <$ipcmd> // '' ) !~ /,UP/ ) {
+        return ( undef, undef );
+    }
+    while (<$ipcmd>) {
+        my ( $proto, $ifaddr ) = split;
+        next unless ( $proto =~ /inet/ );
+        my ($addr) = ( $ifaddr =~ /([^\/]+)/ );
+        if ( $proto eq 'inet' ) {
+            next if defined($ipaddr);
+            $ipaddr = $addr;
+        } elsif ( $proto eq 'inet6' ) {
+            next if defined($ip6addr);
+            $ip6addr = $addr;
+        }
+    }
+    close $ipcmd;
+
+    return ( $ipaddr, $ip6addr );
+}
+
+# Use getent to get IPv6 addresses for host, as NetAddr::IP only returns IPv6
+# if no IPv4 address is present, and ->new6 is broken. Another option is the
+# Socket::GetAddrInfo module, but this is not currently included in the build.
+sub is_ipv6_host {
+    my $host = shift;
+    my ($addr) = split( /\s+/, qx(getent ahostsv6 $host) );
+
+    return 0 unless defined($addr);
+
+    # Ignore default IPv4-mapped addresses
+    return 0 if index( $addr, "::ffff:" ) == 0;
+
+    return 1;
+}
+
+# Table for translating options to arguments
+my %options = (
+    'port'  => 'p',
+    'routing-instance' => 'rt',
+    'user' => 'l',
+);
+
+
+# First argument is host
+my $host = shift @ARGV;
+
+# Get local username
+my $username = $ENV{LOGNAME} || $ENV{USER} || getpwuid($<);
+my $user = $username;
+
+die "ssh: Missing Host\n"
+    unless defined($host);
+
+#handle user@host case.
+my @hargs = split("@", $host);
+($user, $host) = @hargs if (scalar(@hargs) == 2);
+
+my $chvrf_binary = '/usr/sbin/chvrf';
+my @vrf_args = ( );
+my $ssh_binary = '/usr/bin/ssh';
+my @ssh_args = ( );
+my $VRFName = 'default';
+my $args = [ @ARGV ];
+
+
+while (my $arg = shift @$args) {
+    my $arg_val = $options{$arg};
+    die "ssh: unknown option\n"
+        unless defined($arg_val);
+
+    if ( $arg_val eq 'rt' ) {
+        push @vrf_args, $chvrf_binary;
+        $VRFName = shift @$args;
+        push @vrf_args, $VRFName;
+    } elsif ( $arg_val eq 'p' ) {
+        my $flag = "-" . substr($arg_val, 0, 1);
+        push @ssh_args, $flag;
+        push @ssh_args, shift @$args;
+    } elsif ( $arg_val eq 'l' ) {
+        my $flag = "-" . substr($arg_val, 0, 1);
+        push @ssh_args, $flag;
+        push @ssh_args, shift @$args;
+    }
+}
+
+# If no user specified, take current
+if ( ! grep {$_ eq '-l'} @ssh_args ) {
+    my @id_files = qw(id_rsa id_dsa id_ecdsa);
+
+    push @ssh_args, '-l';
+    push @ssh_args, $user;
+    for my $id_file (@id_files) {
+        my $path = "/home/$username/.ssh/$id_file";
+
+        if ( -f $path ) {
+            push @ssh_args, '-i';
+            push @ssh_args, $path;
+        }
+    }
+}
+
+# Bind to address if a source interface has been configured.
+# Notes:
+# - Force ssh to use IPv4 if bind to an IPv4 address, and similarly for IPv6.
+#   This avoids potential mismatch between resolution here and in ssh when
+#   both IPv4 and IPv6 are present.
+# - Call ssh even when no host resolution here, as host alias or address may
+#   be given in one of the ssh config files.
+my $src_ifname = get_src_ifname();
+if ( defined($src_ifname) ) {
+    my $src_vrf = Vyatta::Interface->new($src_ifname)->vrf();
+    my ( $src_ipaddr, $src_ip6addr ) = ( undef, undef );
+    my $host_ifaddr = new NetAddr::IP $host;
+    my $host_af     = NONE;
+    my $src_af;
+
+    if ( $VRFName ne $src_vrf ) {
+        die "ssh: Source interface $src_ifname is in $src_vrf VRF, but ssh run "
+          . "in $VRFName VRF\n";
+    }
+
+    ( $src_ipaddr, $src_ip6addr ) = get_src_addrs( $src_ifname, @vrf_args );
+
+    if ( defined($host_ifaddr) ) {
+        my ($host_addr) = Net::IP::ip_splitprefix($host_ifaddr);
+        $host_af = Net::IP::ip_is_ipv6($host_addr) ? V6 : V4;
+    }
+    $src_af =
+      ( defined($src_ipaddr) ? 1 : 0 ) + 2 * ( defined($src_ip6addr) ? 1 : 0 );
+
+    switch ($src_af) {
+        case (NONE) {
+            die "ssh: Source interface $src_ifname has no addresses or is "
+              . "down\n";
+        }
+        case (V4) {
+            if ( $host_af == V6 ) {
+                die "ssh: Source interface $src_ifname has no global IPv6 "
+                  . "address\n";
+            }
+            push @ssh_args, '-4';
+            push @ssh_args, '-b';
+            push @ssh_args, $src_ipaddr;
+        }
+        case (V6) {
+            if ( $host_af == V4 ) {
+
+                # Host may also resolve to an IPv6 address
+                if ( !is_ipv6_host($host) ) {
+                    die "ssh: Source interface $src_ifname has no IPv4 "
+                      . "address\n";
+                }
+            }
+            push @ssh_args, '-6';
+            push @ssh_args, '-b';
+            push @ssh_args, $src_ip6addr;
+        }
+        case (V4V6) {
+            if ( $host_af == V6 ) {
+                push @ssh_args, '-6';
+                push @ssh_args, '-b';
+                push @ssh_args, $src_ip6addr;
+            } else {
+                push @ssh_args, '-4';
+                push @ssh_args, '-b';
+                push @ssh_args, $src_ipaddr;
+            }
+        }
+    }
+}
+
+# Add VRFName specific host file
+# Note: There is no global (for all VRFName) known_hosts_file. This would not work since
+# there can be two identical IP's in different VRFName's with different host_id. SSH can't
+# distinguish per VRFName, yet.
+push @ssh_args, '-o';
+push @ssh_args, "GlobalKnownHostsFile=/run/ssh/vrf/$VRFName/ssh_known_hosts";
+push @ssh_args, '-o';
+push @ssh_args, "UserKnownHostsFile=/home/$username/.ssh/vrf/$VRFName/.ssh/ssh_known_hosts";
+
+# Just in case
+`mkdir -p /home/$username/.ssh/vrf/$VRFName/.ssh/`;
+`chown $username /home/$username/.ssh/vrf/$VRFName/.ssh/`;
+`touch /home/$username/.ssh/vrf/$VRFName/.ssh/ssh_known_hosts`;
+
+exec @vrf_args, $ssh_binary, @ssh_args, $host;

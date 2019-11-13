@@ -1,0 +1,4 @@
+allowed: echo -n '<routing-instance>'
+help: routing-instance
+include: /ssh/node.tag
+run: vyatta-ssh ${@:2}

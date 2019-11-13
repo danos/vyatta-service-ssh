@@ -1,0 +1,4 @@
+#
+# Presence of this file prevents sshd being executed unless explicitly
+# configured.
+#

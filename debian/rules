@@ -1,0 +1,11 @@
+#!/usr/bin/make -f
+#
+# This debian/rules uses debhelper.
+#
+
+override_dh_systemd_start:
+	dh_systemd_start --no-start \
+	    debian/sshd@.service
+
+%:
+	dh $@ --with=systemd --with=yang

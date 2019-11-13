@@ -1,0 +1,3 @@
+help: Start a remote Secure Shell (SSH) connection.
+allowed: echo -n '<hostname> <user@hostname>'
+run: vyatta-ssh ${@:2}

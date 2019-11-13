@@ -1,0 +1,3 @@
+#!/opt/vyatta/bin/cliexpr
+
+commit:expression: exec "vyatta-ssh-key --check $VAR(@);"

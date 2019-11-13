@@ -1,0 +1,6 @@
+usr/share/configd/yang/vyatta-service-ssh-v1.yang
+templates-op/ssh/node.def opt/vyatta/share/vyatta-op/templates/ssh/
+templates-op/ssh/node.tag/node.def opt/vyatta/share/vyatta-op/templates/ssh/node.tag/
+templates-op/ssh/node.tag/port/* opt/vyatta/share/vyatta-op/templates/ssh/node.tag/port/
+templates-op/ssh/node.tag/user/* opt/vyatta/share/vyatta-op/templates/ssh/node.tag/user/
+scripts/vyatta-ssh opt/vyatta/bin/

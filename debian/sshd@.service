@@ -1,0 +1,10 @@
+[Unit]
+Description=OpenSSH service file for a VRF enviornment.
+
+[Service]
+SyslogIdentifier=sshd-[$VRFName]
+EnvironmentFile=/run/ssh/vrf/%i/%i.env
+ExecStart=/usr/sbin/chvrf $VRFName /usr/sbin/sshd -D $SSHD_CONF_FILE
+
+[Install]
+WantedBy=multi-user.target

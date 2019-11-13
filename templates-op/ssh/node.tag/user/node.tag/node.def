@@ -1,0 +1,4 @@
+allowed: echo -n '<username>'
+help: username
+include: /ssh/node.tag
+run: vyatta-ssh ${@:2}

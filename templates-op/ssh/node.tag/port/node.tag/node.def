@@ -1,0 +1,4 @@
+allowed: echo -n '<port>'
+help: port
+include: /ssh/node.tag
+run: vyatta-ssh ${@:2}

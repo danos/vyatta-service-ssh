@@ -1,0 +1,230 @@
+module vyatta-service-ssh-v1 {
+	namespace "urn:vyatta.com:mgmt:vyatta-service-ssh:1";
+	prefix vyatta-service-ssh-v1;
+
+	import vyatta-types-v1 {
+		prefix types;
+	}
+	import vyatta-services-v1 {
+		prefix service;
+	}
+	import configd-v1 {
+		prefix configd;
+	}
+	import vyatta-system-v1 {
+		prefix system;
+	}
+	import vyatta-system-login-v1 {
+		prefix system-login;
+	}
+
+	organization "AT&T Inc.";
+	contact
+		"AT&T
+		 Postal: 208 S. Akard Street
+		         Dallas, TX 25202
+		 Web: www.att.com";
+
+	description
+		"Copyright (c) 2017-2019, AT&T Intellectual Property.
+		 All rights reserved.
+
+		 Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
+		 All rights reserved.
+
+		 Redistribution and use in source and binary forms, with or without
+		 modification, are permitted provided that the following conditions
+		 are met:
+
+		 1. Redistributions of source code must retain the above copyright
+		    notice, this list of conditions and the following disclaimer.
+		 2. Redistributions in binary form must reproduce the above
+		    copyright notice, this list of conditions and the following
+		    disclaimer in the documentation and/or other materials provided
+		    with the distribution.
+		 3. Neither the name of the copyright holder nor the names of its
+		    contributors may be used to endorse or promote products derived
+		    from this software without specific prior written permission.
+
+		 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+		 'AS IS' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+		 LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+		 FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+		 COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+		 INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+		 BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+		 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+		 CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+		 LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+		 ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+		 POSSIBILITY OF SUCH DAMAGE.
+
+		 SPDX-License-Identifier: BSD-3-Clause
+
+		 SSH configuration";
+	
+	revision 2018-10-08 {
+		description "Added support for SSH legacy ";
+	}
+	revision 2017-11-30 {
+		description "Added support for block ciphers";
+	}
+	revision 2017-01-09 {
+		description "Removed rsa1 from key-strength help";
+	}
+	revision 2016-11-11 {
+		description "Added commit delay warning to key-strength help";
+	}
+	revision 2016-05-24 {
+		description "Create service-ssh grouping.";
+	}
+	revision 2016-03-28 {
+		description "Add augment of /system/login
+			     Remove use of bash in action scripts";
+	}
+	revision 2015-08-14 {
+		description "Initial revision of version 1.";
+	}
+
+	feature ssh-cbc {
+		description "Permit Cipher Block Chain configuration";
+	}
+
+	augment /system:system/system-login:login {
+		configd:end "vyatta-update-ssh.pl --no-keygen --update";
+	}
+
+	grouping service-ssh {
+		container ssh {
+			presence "true";
+			configd:priority "500";
+			configd:help "Secure Shell (SSH) protocol";
+			configd:delete "/opt/vyatta/share/tmplscripts/service/ssh/configd_update --action=delete";
+			configd:update "/opt/vyatta/share/tmplscripts/service/ssh/configd_update --action=update";
+			leaf allow-root {
+				type empty;
+				configd:help "Enable root login over ssh";
+			}
+			leaf authentication-retries {
+				type uint32 {
+					range 1..5;
+				}
+				configd:help "SSH authentication retries. The default is 3.";
+				default "3";
+			}
+			leaf timeout {
+				type uint32 {
+					range 1..120;
+				}
+				configd:help "SSH timeout value (secs). The default is 120.";
+				default "120";
+			}
+			leaf key-security-strength {
+				type enumeration {
+					enum "80" {
+						configd:help "RSA-1024, DSA-1024, ECDSA-256 keys.";
+					}
+					enum "112" {
+						configd:help "RSA-2048, DSA-1024, ECDSA-256 keys.";
+					}
+					enum "128" {
+						configd:help "RSA-3072, DSA-1024, ECDSA-256 keys.";
+					}
+					enum "192" {
+						configd:help "RSA-7680, DSA-1024, ECDSA-384 keys. (commit delay)";
+					}
+					enum "256" {
+						configd:help "RSA-15360, DSA-1024, ECDSA-521 keys. (long commit delay)";
+					}
+				}
+				configd:help "SSH key strength to generate keys. A higher strength takes longer to complete.";
+				configd:validate "/opt/vyatta/share/tmplscripts/service/ssh/key-security-strength/configd_validate.cli";
+			}
+			leaf disable-password-authentication {
+				type empty;
+				configd:help "Don't allow unknown user to login with password";
+			}
+			leaf-list port {
+				type uint32 {
+					range 1..65535 {
+						error-message "Port number must be in range 1 to 65535";
+					}
+				}
+				ordered-by "user";
+				configd:help "Port for SSH service";
+			}
+			leaf-list listen-address {
+				type union {
+					type types:ipv4-address;
+					type types:ipv6-address;
+				}
+				ordered-by "user";
+				configd:help "Local addresses SSH service should listen on";
+			}
+			leaf disable-host-validation {
+				type empty;
+				configd:help "Don't validate the remote host name with DNS";
+			}
+			leaf disable-tcp-forwarding {
+			  type empty;
+			  configd:help "Disable TCP port forwarding";
+			}
+			container permit {
+				if-feature ssh-cbc;
+				configd:help "Enable non-default/legacy parameters";
+				description "Enable non-default/legacy parameters";
+				leaf-list cipher {
+					configd:help "Cipher type to enable";
+					description "Cipher type to enable";
+					type enumeration {
+						enum 3des-cbc {
+							configd:help "Triple DES (64 bit) Cipher Block Chain";
+							description "Triple DES (64 bit) Cipher Block Chain";
+						}
+						enum blowfish-cbc {
+							configd:help "Blowfish (64-bit) Cipher Block Chain";
+							description "Blowfish (64-bit) Cipher Block Chain";
+						}
+						enum cast128-cbc {
+							configd:help "CAST - 128 bit key - Cipher Block Chain";
+							description "CAST - 128 bit key - Cipher Block Chain";
+						}
+						enum aes128-cbc {
+							configd:help "Advanced Encryption Standard - 128 bit key - Cipher Block Chain";
+							description "Advanced Encryption Standard - 128 bit key - Cipher Block Chain";
+						}
+						enum aes192-cbc {
+							configd:help "Advanced Encryption Standard - 192 bit key - Cipher Block Chain";
+							description "Advanced Encryption Standard - 192 bit key - Cipher Block Chain";
+						}
+						enum aes256-cbc {
+							configd:help "Advanced Encryption Standard - 256 bit key - Cipher Block Chain";
+							description "Advanced Encryption Standard - 256 bit key - Cipher Block Chain";
+						}
+					}
+				}
+
+				leaf-list key-exchange-algorithm {
+					configd:help "Key Exchange algorithm";
+					description "Key Exchange algorithm";
+					type enumeration {
+						enum diffie-hellman-group1-sha1 {
+							configd:help "Diffie-Hellman group 1 SHA1";
+						}
+						enum diffie-hellman-group14-sha1 {
+							configd:help "Diffie-Hellman group 14 SHA1";
+						}
+						enum diffie-hellman-group-exchange-sha1 {
+							configd:help "Diffie-Hellman group exchange SHA1";
+						}
+					}
+				}
+			}
+		}
+	}
+
+	augment /service:service {
+		uses service-ssh;
+	}
+
+}

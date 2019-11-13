@@ -1,0 +1,3 @@
+yang/vyatta-service-ssh-routing-instance-v1.yang usr/share/configd/yang/
+debian/sshd@.service lib/systemd/system/
+templates-op/ssh/node.tag/routing-instance/* opt/vyatta/share/vyatta-op/templates/ssh/node.tag/routing-instance/

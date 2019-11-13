@@ -1,0 +1,39 @@
+Source: vyatta-service-ssh
+Section: contrib/net
+Priority: optional
+Maintainer: Vyatta Package Maintainers <DL-vyatta-help@att.com>
+Build-Depends: cpio, debhelper (>= 9), debhelper (>= 9.20160709) | dh-systemd (>= 1.5), dh-yang
+Standards-Version: 3.9.6
+
+Package: vyatta-service-ssh
+Architecture: any
+Depends: openssh-server,
+ ssh,
+ vyatta-cfg,
+ vyatta-debian-ssh-server-config,
+ ${misc:Depends},
+ ${perl:Depends}
+Breaks: vyatta-cfg-system (<< 1.6.0)
+Replaces: vyatta-cfg-system (<< 1.6.0)
+Description: SSH helper scripts
+ Scripts to handle configuration of SSH server
+
+Package: vyatta-service-ssh-v1-yang
+Architecture: all
+Depends: vyatta-service-ssh, ${misc:Depends}, ${yang:Depends}
+Conflicts: vyatta-cfg-system (<< 1.6.0),
+ vyatta-service-ssh-routing-instance-v1-yang (<< 0.10)
+Replaces: vyatta-cfg-system (<< 1.6.0),
+ vyatta-service-ssh-routing-instance-v1-yang (<< 0.10)
+Description: vyatta-service-ssh-v1 module
+ SSH configuration
+
+Package: vyatta-service-ssh-routing-instance-v1-yang
+Architecture: all
+Depends: vyatta-service-ssh-v1-yang,
+ chvrf, ${misc:Depends}, ${yang:Depends}
+Conflicts: vyatta-cfg-system (<< 2.0)
+Replaces: vyatta-cfg-system (<< 2.0)
+Description: vyatta-service-ssh-routing-instance-v1 module
+ routing-instance SSH configuration
+

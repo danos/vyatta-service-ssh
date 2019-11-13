@@ -1,0 +1,124 @@
+#! /usr/bin/perl
+
+# Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+# Copyright (c) 2017, Brocade Communications Systems, Inc.
+# All Rights Reserved.
+#
+# SPDX-License-Identifier: GPL-2.0-only
+
+use strict;
+use warnings;
+
+use lib "/opt/vyatta/share/perl5/";
+use Getopt::Long;
+use Vyatta::Config;
+use File::Spec::Functions;
+
+my $config = new Vyatta::Config;
+my $key_strength;
+
+sub match_current_keys {
+
+    my ($target_dsa, $target_rsa, $target_ecdsa) = @_;
+
+    my $current_rsa = (!-e "/etc/ssh/ssh_host_rsa_key") ? 0 :
+        (`ssh-keygen -lf /etc/ssh/ssh_host_rsa_key | cut -d" " -f1` + 0);
+    my $current_dsa = (!-e "/etc/ssh/ssh_host_dsa_key") ? 0 :
+        (`ssh-keygen -lf /etc/ssh/ssh_host_dsa_key | cut -d" " -f1` + 0);
+    my $current_ecdsa = (!-e "/etc/ssh/ssh_host_ecdsa_key") ? 0 :
+        (`ssh-keygen -lf /etc/ssh/ssh_host_ecdsa_key | cut -d" " -f1` + 0);
+
+    # Check make if they match
+    # For fips, there is only ecdsa key so checking it is sufficient.
+    # Otherwise, check the rest
+    my $fips = `cat /proc/cmdline | grep "fips=1"`;
+    if ($fips ne "") {
+        return ($current_ecdsa == $target_ecdsa);
+    }
+
+    return ($current_dsa == $target_dsa &&
+            $current_rsa == $target_rsa);
+}
+
+sub target_keys_created() {
+
+    my %key_lengths = (
+        "80"  => [1024,  1024, 256],
+        "112" => [1024,  2048, 256],
+        "128" => [1024,  3072, 256],
+        "192" => [1024,  7680, 384],
+        "256" => [1024, 15360, 521],
+        );
+
+    return match_current_keys(@{$key_lengths{$key_strength}});
+}
+
+sub rename_hostkey() {
+    my $sys_keyfileexp = qr/^ssh_host.*_key$/;
+    my $sys_keypubfileexp = qr/^ssh_host.*_key.pub$/;
+
+    if ( -d "/etc/ssh" ) {
+        opendir my $sshdir, "/etc/ssh"
+            or die "Cannot open directory /etc/ssh";
+        foreach my $fn ( readdir $sshdir ) {
+            my $fqfn = catfile( "/etc/ssh", $fn );
+            if ( $fn =~ $sys_keyfileexp || $fn =~ $sys_keypubfileexp ) {
+                rename($fqfn, "${fqfn}.old");
+            }
+        }
+    }
+}
+
+sub initial_commit() {
+
+    my $key = $config->returnOrigValue("service ssh key-security-strength");
+    if (defined($key)) {
+        # A key strength is already defined so this is just an update
+        # so it cannot be a initial commit.  We rely on the fact that
+        # if not key strength ever set (including default) it is an
+        # initial commit.
+        return 0;
+    }
+    return 1;
+}
+
+sub check_key_strength {
+
+    my $oldkey_strength =
+        $config->returnOrigValue("service ssh key-security-strength");
+
+    if (defined($oldkey_strength) && $oldkey_strength == $key_strength) {
+        return;
+    }
+
+    # Keys with target strength already created.
+    if ( target_keys_created() ) {
+        return;
+    }
+
+    if (-e "/etc/ssh/ssh_host_ecdsa_key" ) {
+
+        # Initial commit cannot block at the prompt so rather than
+        # prompting user, we rename the host key instead of silently
+        # removing it.
+        # If this is not an initial commit, prompt the user to zeroize.
+
+        if (initial_commit()) {
+            rename_hostkey();
+        } else {
+            print "Error: keys already exist. Please use 'set system zeroize' to remove keys first.";
+            exit 1;
+        }
+    }
+
+    # No need to warn for short keys as it returns instantly
+    if ( $key_strength == "192" || $key_strength == "256" ) {
+        print "It can take minutes to generate long SSH keys. Subsequently, it can take longer to restart OpenBSD Secure Shell server with long SSH keys. Please wait until completion.";
+    }
+}
+
+GetOptions(
+    "check=s" => \$key_strength,
+);
+
+check_key_strength($key_strength) if defined($key_strength);
