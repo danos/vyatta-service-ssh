@@ -64,7 +64,7 @@ module vyatta-service-ssh-v1 {
 		 SSH configuration";
 	
 	revision 2020-03-27 {
-		description "Obsolete ciphers cast128-cbc and blowfish-cbc";
+		description "Obsolete ciphers cast128-cbc, blowfish-cbc and 3des-cbc";
 	}
 	revision 2018-10-08 {
 		description "Added support for SSH legacy ";
@@ -181,6 +181,7 @@ module vyatta-service-ssh-v1 {
 					description "Cipher type to enable";
 					type enumeration {
 						enum 3des-cbc {
+							status obsolete;
 							configd:help "Triple DES (64 bit) Cipher Block Chain";
 							description "Triple DES (64 bit) Cipher Block Chain";
 						}
