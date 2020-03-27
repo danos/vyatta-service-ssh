@@ -26,7 +26,7 @@ module vyatta-service-ssh-v1 {
 		 Web: www.att.com";
 
 	description
-		"Copyright (c) 2017-2019, AT&T Intellectual Property.
+		"Copyright (c) 2017-2020, AT&T Intellectual Property.
 		 All rights reserved.
 
 		 Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
@@ -63,6 +63,9 @@ module vyatta-service-ssh-v1 {
 
 		 SSH configuration";
 	
+	revision 2020-03-27 {
+		description "Obsolete ciphers cast128-cbc and blowfish-cbc";
+	}
 	revision 2018-10-08 {
 		description "Added support for SSH legacy ";
 	}
@@ -182,10 +185,12 @@ module vyatta-service-ssh-v1 {
 							description "Triple DES (64 bit) Cipher Block Chain";
 						}
 						enum blowfish-cbc {
+							status obsolete;
 							configd:help "Blowfish (64-bit) Cipher Block Chain";
 							description "Blowfish (64-bit) Cipher Block Chain";
 						}
 						enum cast128-cbc {
+							status obsolete;
 							configd:help "CAST - 128 bit key - Cipher Block Chain";
 							description "CAST - 128 bit key - Cipher Block Chain";
 						}
