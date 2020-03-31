@@ -1,3 +1,11 @@
+vyatta-service-ssh (0.19) unstable; urgency=medium
+
+  * "Missing privilege separation directory: /run/sshd" on creating user
+  * Commit failure with ssh cipher options cast128-cbc and blowfish-cbc
+  * Remove "legacy" cipher 3des-cbc as option for SSH
+
+ -- Mike Manning <mmanning@vyatta.att-mail.com>  Tue, 31 Mar 2020 11:37:16 +0100
+
 vyatta-service-ssh (0.18) unstable; urgency=medium
 
   * DANOS Import Master
