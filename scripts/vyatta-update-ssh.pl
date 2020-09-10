@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # **** License ****
 #
-# Copyright (c) 2018-2019, AT&T Intellectual Property.
+# Copyright (c) 2018-2020, AT&T Intellectual Property.
 # All rights reserved.
 #
 # Copyright (c) 2017 by Brocade Communications Systems, Inc.
@@ -24,6 +24,9 @@ use Getopt::Long;
 use Sys::Syslog qw(:standard :macros);
 
 my $config = new Vyatta::Config;
+
+# OpenSSH limitation
+my $MAX_LISTEN_SOCKS = 16;
 
 # Initalize defaults
 my $vars = {
@@ -57,20 +60,50 @@ sub setup_options {
     return;
 }
 
-sub setup_listen_addrs {
+sub setup_ports_and_listen_addrs {
     my ( $opts, $config, $cli_path ) = @_;
+    my @ports     = $config->returnValues("${cli_path}service ssh port");
+    my $num_ports = @ports;
     my @addrs = $config->returnValues("${cli_path}service ssh listen-address");
-    $opts->{ListenAddress} = [@addrs];
-    return;
-}
+    my $num_addrs = @addrs;
 
-sub setup_ports {
-    my ( $opts, $config, $cli_path ) = @_;
-    my @ports = $config->returnValues("${cli_path}service ssh port");
-    if ( scalar(@ports) < 1 ) {
-        return;
+    if ($num_ports) {
+
+        # With no listen addrs, there is 1 IPv4 & 1 IPv6 socket for each port
+        my $max_ports =
+          $num_addrs ? $MAX_LISTEN_SOCKS : int( $MAX_LISTEN_SOCKS / 2 );
+
+        if ( $num_ports <= $max_ports ) {
+            $opts->{Port} = [@ports];
+        } else {
+            $opts->{Port} = [ @ports[ 0 .. $max_ports - 1 ] ];
+            my $str = "SSH: More than $max_ports ports configured, discarding: "
+              . "@ports[ $max_ports .. $num_ports - 1 ]";
+            print "Warning: " . $str . "\n";
+            syslog( 'warning', $str );
+            $num_ports = $max_ports;
+        }
+    } else {
+
+        # default port 22
+        $num_ports = 1;
     }
-    $opts->{Port} = [@ports];
+
+    if ($num_addrs) {
+        my $max_addrs = int( $MAX_LISTEN_SOCKS / $num_ports );
+
+        if ( $num_addrs <= $max_addrs ) {
+            $opts->{ListenAddress} = [@addrs];
+        } else {
+            $opts->{ListenAddress} = [ @addrs[ 0 .. $max_addrs - 1 ] ];
+            my $str =
+                "SSH: More than $max_addrs listen addresses configured, "
+              . "discarding: @addrs[ $max_addrs .. $num_addrs - 1 ]";
+            print "Warning: " . $str . "\n";
+            syslog( 'warning', $str );
+        }
+    }
+
     return;
 }
 
@@ -239,8 +272,7 @@ if ( !defined($cli_path) ) {
 
 mkdir $priv_sep_dir unless -d $priv_sep_dir;
 
-setup_ports( $vars, $config, $cli_path );
-setup_listen_addrs( $vars, $config, $cli_path );
+setup_ports_and_listen_addrs( $vars, $config, $cli_path );
 setup_options( $vars, $config, $cli_path );
 setup_netconf( $vars, $config, $cli_path );
 setup_timeout( $vars, $config, $cli_path );

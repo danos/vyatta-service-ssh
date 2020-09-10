@@ -62,7 +62,10 @@ module vyatta-service-ssh-v1 {
 		 SPDX-License-Identifier: BSD-3-Clause
 
 		 SSH configuration";
-	
+
+	revision 2020-09-10 {
+		description "Restrict number of ports and listen addresses";
+	}
 	revision 2020-03-27 {
 		description "Obsolete ciphers cast128-cbc, blowfish-cbc and 3des-cbc";
 	}
@@ -163,6 +166,12 @@ module vyatta-service-ssh-v1 {
 				}
 				ordered-by "user";
 				configd:help "Local addresses SSH service should listen on";
+			}
+			must "(count(listen-address) = 0 and count(port) <= 8) or "
+			     + "(count(listen-address) > 0 and "
+			     + "((count(port) = 0 and count(listen-address) <= 16) or "
+			     + "(count(port) > 0 and count(port) * count(listen-address) <= 16)))" {
+				error-message "Number of ports or listen-addresses results in more than 16 SSH sockets";
 			}
 			leaf disable-host-validation {
 				type empty;
