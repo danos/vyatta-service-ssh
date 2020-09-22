@@ -63,7 +63,7 @@ module vyatta-service-ssh-v1 {
 
 		 SSH configuration";
 
-	revision 2020-09-10 {
+	revision 2020-09-22 {
 		description "Restrict number of ports and listen addresses";
 	}
 	revision 2020-03-27 {
@@ -170,7 +170,7 @@ module vyatta-service-ssh-v1 {
 			must "(count(listen-address) = 0 and count(port) <= 8) or "
 			     + "(count(listen-address) > 0 and "
 			     + "((count(port) = 0 and count(listen-address) <= 16) or "
-			     + "(count(port) > 0 and count(port) * count(listen-address) <= 16)))" {
+			     + "(count(port) > 0 and count(port) * (count(listen-address)) <= 16)))" {
 				error-message "Number of ports or listen-addresses results in more than 16 SSH sockets";
 			}
 			leaf disable-host-validation {
