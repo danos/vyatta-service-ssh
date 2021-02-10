@@ -26,7 +26,7 @@ module vyatta-service-ssh-v1 {
 		 Web: www.att.com";
 
 	description
-		"Copyright (c) 2017-2020, AT&T Intellectual Property.
+		"Copyright (c) 2017-2021, AT&T Intellectual Property.
 		 All rights reserved.
 
 		 Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
@@ -63,6 +63,9 @@ module vyatta-service-ssh-v1 {
 
 		 SSH configuration";
 
+	revision 2021-02-10 {
+		description "Added support for SSH client-alive-attempts CLI";
+	}
 	revision 2020-09-22 {
 		description "Restrict number of ports and listen addresses";
 	}
@@ -116,6 +119,27 @@ module vyatta-service-ssh-v1 {
 					range 1..5;
 				}
 				configd:help "SSH authentication retries. The default is 3.";
+				default "3";
+			}
+			leaf client-alive-interval {
+				type uint32 {
+				range "0 | 5..65535";
+				}
+				configd:help "Set the SSH keepalive interval (seconds), a value of zero disables keep-alives";
+				units "seconds";
+				description "Set the SSH keepalive interval (seconds),
+					a value of zero disables the keep-alives,
+					values (1-4) are too small to be of any significance or functional";
+				default "0";
+			}
+			leaf client-alive-attempts {
+				type uint16 {
+				range 0..255;
+				}
+				configd:help "Set the SSH client alive attempts. The timeout is client-alive-interval * client-alive-attempts";
+				description "Set the SSH client alive attempts before closing the session.
+					The timeout is client-alive-interval * client-alive-attempts.
+					A value of zero disables session termination";
 				default "3";
 			}
 			leaf timeout {

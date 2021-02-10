@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # **** License ****
 #
-# Copyright (c) 2018-2020, AT&T Intellectual Property.
+# Copyright (c) 2018-2021, AT&T Intellectual Property.
 # All rights reserved.
 #
 # Copyright (c) 2017 by Brocade Communications Systems, Inc.
@@ -34,6 +34,7 @@ my $vars = {
     Port                => ["22"],
     Subsystem           => [],
     ClientAliveInterval => 0,
+    ClientAliveCountMax => 3,
 };
 
 my $keygen       = 1;
@@ -131,18 +132,23 @@ sub setup_timeout {
 
 sub setup_client_alive_interval {
     my ( $opts, $config ) = @_;
-    my $timeout = $config->returnValue("system login session-timeout");
+    my $timeout = $config->returnValue("service ssh client-alive-interval");
 
     return if !defined($timeout);
 
-    $timeout = int( $timeout / 3 );
-    if ( $timeout < 30 ) {
-        return;
-    }
-    if ( $timeout > 235 ) {
-        $timeout = 235;
-    }
+    $timeout = int($timeout);
     $opts->{ClientAliveInterval} = $timeout;
+    return;
+}
+
+sub setup_client_alive_count_max {
+    my ( $opts, $config ) = @_;
+    my $attempts = $config->returnValue("service ssh client-alive-attempts");
+
+    return if !defined($attempts);
+
+    $attempts = int($attempts);
+    $opts->{ClientAliveCountMax} = $attempts;
     return;
 }
 
@@ -277,6 +283,7 @@ setup_options( $vars, $config, $cli_path );
 setup_netconf( $vars, $config, $cli_path );
 setup_timeout( $vars, $config, $cli_path );
 setup_client_alive_interval( $vars, $config );
+setup_client_alive_count_max( $vars, $config );
 setup_max_auth_retries( $vars, $config, $cli_path );
 setup_ciphers( $vars, $config, $cli_path );
 setup_kexalgorithms( $vars, $config, $cli_path );
@@ -305,6 +312,7 @@ SyslogFacility AUTH
 LogLevel INFO
 LoginGraceTime [% LoginGraceTime %]
 ClientAliveInterval [% ClientAliveInterval %]
+ClientAliveCountMax [% ClientAliveCountMax %]
 MaxAuthTries [% MaxAuthTries %]
 PermitRootLogin [% PermitRootLogin %]
 StrictModes yes
