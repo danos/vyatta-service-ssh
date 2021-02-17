@@ -1,3 +1,10 @@
+vyatta-service-ssh (0.22) unstable; urgency=medium
+
+  [ Ramkumar Ganapathysubramanian ]
+  * Add a new keep-alive timer configuration for SSH
+
+ -- Mike Manning <mmanning@vyatta.att-mail.com>  Wed, 17 Feb 2021 14:10:20 +0000
+
 vyatta-service-ssh (0.21) unstable; urgency=medium
 
   [ William Ivory ]
