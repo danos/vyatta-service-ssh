@@ -1,0 +1,79 @@
+#!/usr/bin/perl
+#
+# Copyright (c) 2021, AT&T Intellectual Property. All rights reserved.
+#
+# SPDX-License-Identifier: GPL-2.0-only
+#
+
+use strict;
+use warnings;
+
+use lib "/opt/vyatta/share/perl5/";
+use File::Slurp qw(read_file write_file);
+use Vyatta::VrfManager qw(get_interface_vrf $VRFNAME_DEFAULT);
+
+my $BASE_NAME    = "listen_addresses";
+my $DEFAULT_FILE = "/run/ssh/listen_addresses";
+my $DEFAULT_SVC  = "ssh";
+my $VRF_DIR      = "/run/ssh/vrf";
+
+my $dev   = shift;
+my $proto = shift;
+my $addr  = shift;
+
+sub usage {
+    print <<EOF;
+Usage: <device> <inet|inet6> <address>
+EOF
+    exit 1;
+}
+
+usage() unless defined($dev);
+usage() unless defined($proto);
+usage() unless defined($addr);
+
+# Ignore IPv6 link-local (fe80::/10)
+exit 0 if $proto eq 'inet6' && $addr =~ /^fe[89ab]/;
+
+my $file_found = 0;
+$file_found = 1 if ( -f $DEFAULT_FILE );
+
+# No action if file is not present and there is no SSH VRF cfg
+exit 0 unless $file_found or ( -d $VRF_DIR );
+
+my $file = $DEFAULT_FILE;
+my $svc  = $DEFAULT_SVC;
+my $vrf  = get_interface_vrf($dev);
+if ( $vrf && $vrf ne $VRFNAME_DEFAULT ) {
+    $file       = "$VRF_DIR/$vrf/$BASE_NAME";
+    $file_found = ( -f $file ) ? 1 : 0;
+    $svc        = 'sshd@' . $vrf;
+}
+exit 0 unless $file_found;
+
+my $in = read_file( $file, chomp => 1 );
+my %pending_addrs = map { $_ => 1 } ( split( ' ', $in ) );
+exit 1 unless %pending_addrs;
+
+# Notification is not for a listen address that is pending
+exit 0 unless $pending_addrs{$addr};
+
+# Ignore any notifications for any addresses still in tentative state
+# Output format: <intf> <UP/DOWN> <address1/prefix1> <address2/prefix2> ...
+my $cmd = "ip -br addr show dev $dev scope global tentative";
+exit 0 if index( qx($cmd), $addr ) > -1;
+
+# As bind to address remains in place, no need to restart sshd later on due to
+# e.g. intf down/up causing IPv6 addrs to go from assigned to tentative and back
+delete $pending_addrs{$addr};
+if (%pending_addrs) {
+    write_file( $file, { atomic => 1 }, join( " ", keys %pending_addrs ) )
+      or exit 1;
+} else {
+    unlink($file) or exit 1;
+}
+
+# Restart sshd so that it can bind to the assigned listen address
+system("service $svc restart");
+
+exit 0;

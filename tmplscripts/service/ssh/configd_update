@@ -7,6 +7,7 @@
 # When setting 'set service ssh' we enable ssh on the default vrf.
 
 PRIV_SEP_DIR="/run/sshd"
+RUN_DIR="/run/ssh"
 
 for option in "$@"; do
     case $option in
@@ -29,9 +30,11 @@ done
 case $action in
     delete)
         if [[ "$VRFName" != "default" ]]; then
+            rm -f /run/ssh/vrf/$VRFName/listen_addresses &> /dev/null
             systemctl stop sshd@${VRFName}.service
             rm -f /run/ssh/vrf/$VRFName/sshd_config &> /dev/null
         else
+            rm -f /run/ssh/listen_addresses &> /dev/null
             systemctl stop ssh &> /dev/null
             # stop sshd from automatically running at the next reboot
             touch /etc/ssh/sshd_not_to_be_run
@@ -44,11 +47,15 @@ case $action in
         if [ ! -d "$PRIV_SEP_DIR" ]; then
             mkdir -p "$PRIV_SEP_DIR" -m 0755 || exit 1
         fi
+        # may be needed for file to store listen addresses for default vrf
+        if [ ! -d "$RUN_DIR" ]; then
+            mkdir -p "$RUN_DIR" -m 0755 || exit 1
+        fi
 
         if [[ $VRFName != "default" ]]; then
             mkdir -p /run/ssh/vrf/$VRFName
             vyatta-update-ssh.pl --cli-path="routing routing-instance $VRFName " \
-                --update=/run/ssh/vrf/$VRFName/sshd_config
+                --update=/run/ssh/vrf/$VRFName/sshd_config --vrf=$VRFName
 
             echo "SSHD_CONF_FILE=-f /run/ssh/vrf/$VRFName/sshd_config" > /run/ssh/vrf/$VRFName/${VRFName}.env
             echo "VRFName=$VRFName" >> /run/ssh/vrf/$VRFName/${VRFName}.env
@@ -56,8 +63,11 @@ case $action in
         else
             vyatta-update-ssh.pl --update=/etc/ssh/sshd_config
             # sshd can run, as update also removed /etc/ssh/sshd_not_to_be_run
-            systemctl reload-or-restart ssh
+            systemctl reload-or-restart ssh &> /dev/null
+            if [ $? -ne 0 ]; then
+                echo "SSH service will listen on address if this is configured"
+                exit 0
+            fi
         fi
-
     ;;
 esac

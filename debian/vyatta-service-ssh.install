@@ -2,3 +2,4 @@ opt/vyatta/sbin/vyatta-ssh-key
 opt/vyatta/sbin/vyatta-update-ssh.pl
 opt/vyatta/share/tmplscripts/service/ssh
 etc/ssh/sshd_not_to_be_run
+scripts/netplug/newaddr.d/sshd /etc/netplug/newaddr.d
