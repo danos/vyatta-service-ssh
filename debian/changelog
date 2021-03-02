@@ -1,3 +1,9 @@
+vyatta-service-ssh (0.23) unstable; urgency=medium
+
+  * ssh for ipv6 fails upon reboot
+
+ -- Mike Manning <mmanning@vyatta.att-mail.com>  Tue, 02 Mar 2021 14:51:06 +0000
+
 vyatta-service-ssh (0.22) unstable; urgency=medium
 
   [ Ramkumar Ganapathysubramanian ]
