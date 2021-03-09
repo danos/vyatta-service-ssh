@@ -9,6 +9,7 @@ Package: vyatta-service-ssh
 Architecture: any
 Depends: openssh-server,
  ssh,
+ libpam-systemd,
  vyatta-cfg,
  vyatta-debian-ssh-server-config,
  ${misc:Depends},
