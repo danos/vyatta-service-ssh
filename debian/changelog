@@ -1,3 +1,10 @@
+vyatta-service-ssh (0.24) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * need libpam-systemd package to login correctly over a vrf
+
+ -- Mike Manning <mmanning@vyatta.att-mail.com>  Wed, 10 Mar 2021 16:58:24 +0000
+
 vyatta-service-ssh (0.23) unstable; urgency=medium
 
   * ssh for ipv6 fails upon reboot
