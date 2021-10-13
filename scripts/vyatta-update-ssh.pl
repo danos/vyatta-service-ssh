@@ -232,7 +232,7 @@ sub setup_ciphers {
 sub setup_kexalgorithms {
     my ( $opts, $config, $cli_path ) = @_;
     my $algs =
-      `/usr/sbin/sshd -T -f /dev/null | grep kexalgorithms | cut -d ' ' -f 2`;
+      `/usr/sbin/sshd -T -f /dev/null | grep ^kexalgorithms | cut -d ' ' -f 2`;
     chomp $algs;
     my @splitalgs = split( ',', $algs );
 
